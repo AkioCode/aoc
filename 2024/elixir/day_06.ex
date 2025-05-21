@@ -52,10 +52,9 @@ defmodule Day06 do
   end
 
   defp patrol(t_boundaries, t_obstacles, patrolled_positions, guard_coords, direction, direction_idx) do
-    {delta_elem, fixed_elem} = Integer.is_even(direction_idx) && {0, 1} || {1, 0 }
-    {delta_idx, fixed_idx} = {elem(guard_coords, delta_elem), elem(guard_coords, fixed_elem)}
-
-    positive? = elem(direction, delta_elem) > 0
+    {delta_axis, fixed_axis} = Integer.is_even(direction_idx) && {0, 1} || {1, 0}
+    {delta_idx, fixed_idx} = {elem(guard_coords, delta_axis), elem(guard_coords, fixed_axis)}
+    positive? = elem(direction, delta_axis) > 0
     [max_boundary, obstacles] = resolve_data([t_boundaries, t_obstacles], direction)
     boundary = positive? && max_boundary || 0
     can_hit? = fn n ->
@@ -65,30 +64,22 @@ defmodule Day06 do
       can_hit?.(idx) && ((is_nil(acc) || (abs(delta_idx - idx) < abs(delta_idx - acc))) && idx) || acc
     end)
 
-    # dbg()
-    if next_obstacle_idx do
-      if abs(delta_idx - next_obstacle_idx) > 1 do
-        # Add positions patrolled, rotate, and patrol
-        last_delta_idx = positive? && next_obstacle_idx - 1 || next_obstacle_idx + 1
-        patrolled_positions =
-          delta_idx..last_delta_idx
-          |> MapSet.new(&Tuple.insert_at({fixed_idx}, delta_elem, &1))
-          |> MapSet.union(patrolled_positions)
-        guard_coords = Tuple.insert_at({fixed_idx}, delta_elem, last_delta_idx)
-        direction_idx = direction_idx < 3 && direction_idx + 1 || 0
-        direction = Enum.at(@directions, direction_idx)
-        patrol(t_boundaries, t_obstacles, patrolled_positions, guard_coords, direction, direction_idx)
-      else
-        # Rotate and patrol
-        direction_idx = direction_idx < 3 && direction_idx + 1 || 0
-        direction = Enum.at(@directions, direction_idx)
-        patrol(t_boundaries, t_obstacles, patrolled_positions, guard_coords, direction, direction_idx)
-      end
+    with {_, true} <- {:has_obstacle?, !is_nil(next_obstacle_idx)},
+       {_, true} <- {:distant_obstacle?, abs(delta_idx - next_obstacle_idx) > 1} do
+      # Add positions patrolled, rotate, and patrol
+      last_delta_idx = positive? && next_obstacle_idx - 1 || next_obstacle_idx + 1
+      patrolled_positions = update_patrolled_positions(patrolled_positions, delta_idx..last_delta_idx, fixed_idx, delta_axis)
+      guard_coords = Tuple.insert_at({fixed_idx}, delta_axis, last_delta_idx)
+      {direction_idx, direction} = rotate(direction_idx)
+      patrol(t_boundaries, t_obstacles, patrolled_positions, guard_coords, direction, direction_idx)
     else
-      # Add the positions patrolled and exit
-      delta_idx..boundary
-      |> MapSet.new(&Tuple.insert_at({fixed_idx}, delta_elem, &1))
-      |> MapSet.union(patrolled_positions)
+      {:has_obstacle?, false} ->
+        # Add the positions patrolled and exit
+        update_patrolled_positions(patrolled_positions, delta_idx..boundary, fixed_idx, delta_axis)
+      {:distant_obstacle?, false} ->
+        # Rotate and patrol
+        {direction_idx, direction} = rotate(direction_idx)
+        patrol(t_boundaries, t_obstacles, patrolled_positions, guard_coords, direction, direction_idx)
     end
   end
 
@@ -98,6 +89,18 @@ defmodule Day06 do
     else
       Enum.map(tuples_of_data, &elem(&1, 1))
     end
+  end
+
+  defp update_patrolled_positions(patrolled_positions, range, fixed_idx, delta_axis) do
+    range
+    |> MapSet.new(&Tuple.insert_at({fixed_idx}, delta_axis, &1))
+    |> MapSet.union(patrolled_positions)
+  end
+
+  defp rotate(direction_idx) do
+    direction_idx = direction_idx < 3 && direction_idx + 1 || 0
+    direction = Enum.at(@directions, direction_idx)
+    {direction_idx, direction}
   end
 end
 
